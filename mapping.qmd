@@ -1,0 +1,202 @@
+---
+title: "Mapping With {tmap}"
+format: html
+embed-resources: true
+toc: true
+eval: false
+---
+
+## Outline of Process
+
+- Download shapefiles, a special type of data that creates the shapes of geographic boundaries, eg state borders
+- Download data that corresponds to each geographic unit of interest
+- Combine the shapefiles and the data into one dataframe
+- Map the data using the dataframe and the {tmap} package
+
+## Download Shapefiles
+
+- The most common source of shapefiles for the US come from the US Census Bureau website
+- You can use the `tigris` package to download these directly into R
+  - Note: theres another package called `sf` that seems like the more popular way to get shapefiles, i havent used it but might be worth looking into if you're interested
+- There's a set of functions named different geography types that you use to get the shapefile for the geographic unit you're interested in
+  - `school_districts()`
+  - `states()`
+  - `counties()`
+  - etc
+- Within the function, you can set arguments to further filter the data downloaded
+  - For example, `counties(state = "PA")` would get you all the counties in Pennsylvania
+- The example below downloads shapefiles for all school districts in PA and saves in the object `schl_dist_shapefiles`
+  - It's a dataframe with one row per district, with geographic info about each district
+  - And the last column is called `geometry` - this column contains the actual shape information for the boundaries of each district that it uses to draw the map with
+
+```{r}
+#| results: hide
+#| message: false
+
+# installs `pacman` package if u dont have it, which is used to load packages
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(dplyr, stringr, readxl, tigris)  # load / install packages
+
+# Get shapefiles for PA school districts
+schl_dist_shapefiles <- school_districts(state = "PA")
+```
+
+## Load Data
+
+- Now we need a corresponding set of data for each geographic unit on our map
+- In this school districts example, this means loading a dataset of PA school district data
+- We could just use data from the PA Department of Education
+- But the largest source of US data is from the US Census Bureau
+  - They have data at every geographic unit level, including states, counties, school districts, zip codes, and even smaller than zip codes, so it's a great source
+  - You can download the data from this website: https://data.census.gov
+  - Click "used advanced search," and then you can select the geography you want
+  - Then search for the datapoint you want
+  - You can also download this data directly into R with the `acs` package
+- But to keep things simple here i'll just use data we already have saved in our shared folder from the PA Dept of Ed
+  - I load data on each district's projected percent enrollment change over the next 10 years
+
+```{r}
+# Load enrollment projection data
+df <- read_xlsx("School District Projected Enrollment Change.xlsx")
+```
+
+## Merge Shapefiles & Data
+
+- Merge the two datasets using a common column that identifies each geographic unit, that's the same in both datasets
+- In our case, both datasets have columns with the school district's names
+  - We have to do a bit of pre-processing to make the columns match exactly since they're formatted a bit different
+  - In one dataset, the district names end with "School District" and in the other with "SD", so we just need to remove these endings so we just have the actual district name in each column
+- Ideally you would have columns that match up perfectly already, like numeric ID columns (eg zip codes)
+  - But you often have to do a bit of pre-processing first to get them to match before merging
+- Note: I use the `left_join()` function to merge them, for an overview of this see the "dataset creation training" quarto file which has a section on merging
+
+```{r}
+# Remove the endings from the names of school districts in both datasets
+# and save in a new column called "dist_name"
+
+schl_dist_shapefiles$dist_name <- str_replace(
+  schl_dist_shapefiles$NAME, " School District", ""
+)
+
+df$dist_name <- str_replace(df$lea_name, " SD", "")
+
+# Merge data using the sd column
+df <- left_join(schl_dist_shapefiles, df, by = "dist_name")
+```
+
+## Create Map
+
+- We now use this dataframe to make a map using the {tmap} package
+
+### Overview of {tmap} package
+
+- {tmap} package is probably the most powerful map making package, because you can make static (ie regular picture-type maps) or interactive maps (where you can click things and get more info, etc)
+- It's structured similar to ggplot: you start with the `tm_shape()`, and the argument you give it is the dataframe
+  - The function automatically recognizes the columns with the shapefiles and uses them to draw the map
+- Then you add additional elements to it using the `+` the same way ggplot works
+- The main function where you provide the data will usually be `tm_fill()` - you use data to control the color that the shapes are filled in
+  - Another common one is `tm_dots()` which can put specific points on the map using data (but ill keep it simple here and just use tm_fill)
+- The only argument you need to give to `tm_fill()` is the name of the column with the data you want to use to control the colors of each district on the map (in quotes)
+- But you can give it many more arguments to customize it, below are some common ones:
+  - `breaks = `: this allows you to specify the break points for your data, ie the boundaries for the groups that will all get the same color on the map (if your data is continuous)
+    - You give the argument a vector where the first value is the minimum possible data value to plot, and the last value is highest maximum
+    - If you set the min and max to `-Inf` or `Inf`, the legend will say "less than..." and "...or more", see the example below
+  - `title = `: customize the title of your legend
+    - You can remove the title by setting this to an empty string, ie just `""`
+  - `palette = `: customize the colors used for the map, see the colors section below for some more details
+  - There are dozens of other arguments here to choose from, check out the documentation for more detail (by typing `?tm_fill` into R)
+- To add borders to the geographic units, add a `tm_borders()` layer
+  - You can leave it empty and just use the defaults, or you can customize them a bit
+  - In the example below i reduced the thickness of the lines with the `lwd = ` argument
+- Another powerful function is `tm_layout`, which allows you to adjust a tooon of things about the appearance of your map, like add a title, change font, etc
+  - I just use it to add a title in example below
+- There's tons more you can do with these maps to make them look much nicer, and to make them interactive
+  - See the two links i put at the end of this doc if you're interested in learning more
+
+### Choosing Custom Colors
+
+- tmap will give you default colors that work fine usually, but you might want to customize the colors
+- There are R packages that have specific sets of colors that work well together (and that are accessible to people with colorblindness)
+- The most popular R packages for color sets is "ColorBrewer", and their website can help you choose color sets: <https://colorbrewer2.org/>
+- You just copy the codes next to the colors in as strings to the `palette` argument in `tm_fill` (see the below example)
+- There are also pre-defined palette sets with names, but i dont have much experience using them; the resources below probably have more info though
+
+### Example: Enrollment Declines
+
+- In this example, i want to visualize the districts in PA that are projected to have declining enrollment, and where the largest declines will be
+- I make a map where i specify four groups of districts (using the `breaks =` argument in `tm_fill`), with projected enrollment declines of:
+  - 25% or greater (ie enrollment % change will be -.25 or lower)
+  - 10%-25%
+  - 0%-10%
+  - No enrollment decline projected (ie enrollment growth is projected)
+- One issue you might notice here is that there is overlap between the categories, i'm sure theres a way to fix this but i havent used this package much so i'm not sure how
+- Another issue with these maps is that the legend and title will overlap with the map itself if they get big
+  - There are ways to fix this too but they can be a bit complicated, so i wont go into detail about them here, but check out this [blog post](https://www.jla-data.net/eng/adjusting-bounding-box-of-a-tmap-map/) & [forum post](https://stackoverflow.com/questions/60892033/how-do-you-position-the-title-and-legend-in-tmap) for more details if you want to know
+- My final map is not very good looking, but it at least shows us the data that we wanted to see
+  - And you can go super in depth with the {tmap} package to make it look really nice, it just takes a bit of patience to learn about the different functions and arguments that can help you get the result you want
+
+```{r}
+pacman::p_load(tmap)
+
+tm_shape(df) +
+  tm_fill(
+    "pct_change",  # Name of column from dataset to control fill colors
+    breaks = c(-Inf, -.25, -.1, 0, Inf),  # Set the break points for the data
+    title = "",  # Remove legend title (or you could add custom title here)
+    palette = c("#f03b20", "#fd8d3c", "#fecc5c", "#edf8e9")  # Custom colors
+  ) +
+  tm_borders(lwd = .5) +  # Add school district borders (& reduce width)
+  tm_layout(
+    title = "Projected % Enrollment Change",  # Add title
+    title.position = c("center", "top")  # Center title above plot
+  )
+```
+
+## Full Code
+
+Here's the full code all in one place
+
+```{r}
+#| message: false
+
+# installs `pacman` package if u dont have it, which is used to load packages
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(dplyr, stringr, readxl, tigris, tmap)
+
+# Get shapefiles for PA school districts
+schl_dist_shapefiles <- school_districts(state = "PA")
+
+# Load enrollment projection data
+df <- read_xlsx("School District Projected Enrollment Change.xlsx")
+
+# Remove the endings from the names of school districts in both datasets
+# and save in a new column called "dist_name"
+
+schl_dist_shapefiles$dist_name <- str_replace(
+  schl_dist_shapefiles$NAME, " School District", ""
+)
+
+df$dist_name <- str_replace(df$lea_name, " SD", "")
+
+# Merge data using the sd column
+df <- left_join(schl_dist_shapefiles, df, by = "dist_name")
+
+# Create the map
+tm_shape(df) +
+  tm_fill(
+    "pct_change",  # Name of column from dataset to control fill colors
+    breaks = c(-Inf, -.25, -.1, 0, Inf),  # Set the break points for the data
+    title = "",  # Remove legend title (or you could add custom title here)
+    palette = c("#f03b20", "#fd8d3c", "#fecc5c", "#edf8e9")  # Custom colors
+  ) +
+  tm_borders(lwd = .5) +  # Add school district borders (& reduce width)
+  tm_layout(
+    title = "Projected % Enrollment Change",  # Add title
+    title.position = c("center", "top")  # Center title above plot
+  )
+```
+
+## Additional Resources
+
+- Here's a good reference guide for using {tmap}: <https://r-tmap.github.io/tmap-book/index.html>
+- If you want to learn more about mapping in R, here's a great chapter that explains the bigger picture about more: <https://r.geocompx.org/adv-map>.
