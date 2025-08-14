@@ -1,0 +1,473 @@
+---
+title: "Dataset Creation & Descriptive Analyses"
+author: "David Loeb"
+format: html
+toc: true
+number-sections: true
+---
+
+\newpage
+
+# Download & Prep Datasets
+
+- Before doing anything in R, we need to download all the necessary datasets and prepare them to be useable in R
+
+## Data Sources
+
+- The first step is downloading the data from government websites
+- This type of data is called administrative data, and it's a big semi recent development in education research to use these type of datasets heavily
+
+### PA Department of Education 
+
+- The main data website for the PA Department of Education is [here](https://www.education.pa.gov/DataAndReporting/Pages/default.aspx)
+  - You can click through the various links to access many different datasets
+- The PA school finance data is [here](https://www.education.pa.gov/Teachers%20-%20Administrators/School%20Finances/Finances/AFR%20Data%20Summary/Pages/AFR-Data-Summary-Level.aspx)
+- PA's federal accountability data system files are [here](https://futurereadypa.org/Home/DataFiles)
+- As you can see, the PA education data is scattered all over the place, but there's tons of it
+- Every state department of education is similar - tons of data (but probably a bit scattered around their website)
+
+### US Census American Community Survey
+
+- The US Census American Community Survey (ACS) is an amazing source of data
+- They have data at all different geographic levels, from states to counties to school districts all the way down to the neighborhood level
+- Here's the link to their data site: <https://data.census.gov>
+- It takes a bit of exploring to wrap your head around but is a great data source
+- We will use poverty data from them, but we can access it through a PA Dept of Ed spreadsheet to make things easier
+
+### National Center for Education Statistics
+
+- Another great source of education data, including higher education, is the federal government's National Center for Education Statistics (NCES)
+- They have the Common Core of Data (CCD) which is similar to the data from the PA Dept of Ed, but it's for all districts in the country
+  - Link: <https://nces.ed.gov/ccd/files.asp>
+- They also have the Integrated Postsecondary Education Data System (IPEDS) which is the higher education datasets
+  - Link: <https://nces.ed.gov/ipeds/>
+  - I've never used these myself but I see them mentioned a lot
+- We won't use these datasets for this project but i just wanted to tell you about them
+
+## Excel dataset formatting issues & solutions
+
+Administrative data is often formatted in Excel files in a way that does not work well for R. The most common issues are:
+
+1. Extra rows & text at the top of the Excel sheet before the column headers begin
+    - Column headers must be first row when loading data into R
+    - Solution: use `readxl` package's `open_xlsx()` function and use the `skip = ` argument and set it equal to the number of extra rows before the header column
+2. Extra rows & text or values at bottom of Excel sheet after data we want ends
+    - Use `filter()` (or base R subsetting) to remove extra rows - see the "Filter rows" section below for a demonstration
+3. Excel sheets with multiple tabs - we typically will just want one of the tabs
+    - Solution: use `readxl` package's `open_xlsx()` function and use the `sheet = ` argument to specify the name of the tab you want to load in
+4. Column names (a) have spaces in them and/or (b) begin with numbers (and (c) have capital letters and (d) are often very long)
+    - R requires that names have no spaces and don't begin with numbers (otherwise need special syntax to use them) 
+    - And it's easier to work with lower case letters and shorter names
+    - Solution for a-c: use the `janitor` package's `clean_names()` function, which automatically replaces spaces with `_`, adds "x" to beginning of column name if it starts with a number, and makes all letters lower case
+    - Solution for d: Then you can manually shorten any unnecessarily long names in R itself for the columns you actually use using the `dplyr::rename()` function, where syntax is `rename(df, new_name = old_name)`
+
+# Load & Merge Data
+
+- Now we're ready to load the data into R and work with it there
+- Our goal is to merge all the different datasets into one big dataset, with one row for each school district and many columns with all the data we're interested in
+- In the sections that follow I've put some sample code to demonstrate how it works, and your jobs will basically be to expand on what's here to complete the task
+
+## Load packages & set working directory
+
+- First we load the necessary packages
+- The first line below is just a way to make R install the `pacman` package if you don't already have it installed, so that you can then use `pacman::p_load()` to load packages
+  - This is a good way to share code; it ensures that the other person will have all necessary packages installed without having to change any code or re-installing packages they already have
+- Then we set the working directory with the `setwd()` function
+  - Directory is just another name for folder, so you can think of the working directory as our home base folder
+  - Any time we need to specify a file path, it will start at the path we have given to the `getwd()` function
+- The best way to do this is use `this.path` package's `here()` function, which sets the working directory to whatever folder the R script or Quarto doc is in
+  - It's the best because that way you can share your code with others, and they won't need to change any file paths as long as the data is in the same folder as the script
+  - Note: Quarto automatically sets the working directory to the current folder by default, so I technically don't need to do that here, but i wanted to demonstrate
+
+```{r}
+#| label: load-packages-set-wd
+#| message: false
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(this.path, readxl, janitor, dplyr, psych)
+setwd(here())
+```
+
+## Load datasets
+
+- To load data, you use a loading function, and the argument you give it is the file path to the data
+- Our data is in Excel, so we use `readxl` package `read_xlsx()` loading function
+- For other common dataset file types like CSV, you can use the `readr` package functions, eg `read_csv()`, which work the same way as `read_xlsx()`
+
+```{r}
+#| label: load-data
+#| message: false
+
+rev <- read_xlsx(
+  "data/Finances AFR Revenues 2021-2022.xlsx",
+  sheet = "2021-22 Rev per ADM"
+)
+
+locale <- read_xlsx(
+  "data/Urban Centric and Metro Centric Locale Codes.xlsx", 
+  sheet = "SY1819 LEA Locale"
+)
+```
+
+## Merge data
+
+- We will merge datasets using the `dplyr` package's set of `join` functions
+- The datasets must match on one or more columns, and that's how the merge knows which rows to merge together
+
+### Explanation of join types
+
+- I almost always use `left_join()`, where you begin with one "master" dataset (on the "left"), and merge another dataset onto that one
+  - If there are rows in the "left side" master dataset that don't have matches in the "right side" dataset being merged onto it, those rows will be marked with the missing data indicator `NA`
+  - If the "right side" dataset has rows that have no match in the left side master dataset, they just won't be merged on at all
+- Another type of merge is the `full_join()`, where all rows from all datasets are merged into one
+  - Matching rows are merged together
+  - All unmatched rows are kept as well with `NA` for the columns that came from the opposite dataset
+
+### Syntax for `left_join()` function
+
+- In the `left_join` function, the arguments are:
+  - First, the "master" data frame
+  - Second, the data frame you want to merge on to it
+  - Third, `by = "variable_name"` where you specify the name of the column that has the matching variable
+- If the matching variables have different names in different datasets, you can do this:
+  - `by = c("var_name_df1" = "var_name_df2")`
+- If you want to match on multiple variables, you can do this:
+  - `by = c("match_var1", "match_var2")`
+- If you want to match on multiple variables with different names in the diff dataframes, do this:
+  - `by = c("var1_name1" = "var1_name2", "var2_name1" = "var2_name2")`
+
+### My general approach
+
+- I like to choose one dataset to serve as the base for the master data frame
+- This dataset just needs to have the proper set of rows, ie a complete set of rows for all of the units we are interested in
+  - In our case, we just need to choose a dataset that has one row for every traditional school district in PA
+  - The revenues dataset that I loaded above satisfies this condition so we'll use that
+- Then I do a left join with this dataset on the "left", ie listed as the first argument, and then begin merging other datasets onto it, saving the result each time as `df` which is what i like to call my master data frames
+
+### Common merge problem: different data types
+
+- Often, the column you want to use to merge the two datasets is an ID number
+  - This is the case for PA school districts, where each dataset has a column called "AUN" with a unique ID number for each district
+- But, some datasets store this as actual numbers, while other datasets store it as a character string
+  - This is the case in our example: it's numeric in the rev dataset but character in locale dataset
+- When this happens, we need to first convert one to match the other, using R's `as.character()` or `as.numeric()` functions
+  - I generally like to convert to character unless we are actually going to use something as a number, eg do math with it
+
+### Code to merge our data
+
+- Here's the code that merges our datsets
+
+```{r}
+#| label: merge-data
+
+# Convert rev AUN to character
+rev$AUN <- as.character(rev$AUN)
+
+# Merge
+df <- left_join(rev, locale, by = "AUN")
+```
+
+# Data Cleaning & Prep
+
+## Clean names
+
+- The first step here is to clean the names using `janitor::clean_names()`
+- We can check the new names using `names()` function, which returns a vector with all the column names
+  - Tip: It's useful to enter `names(df)` in the console so that you have a reference of all column names in there while you write code that uses the column names
+
+```{r}
+#| label: clean-names
+
+df <- clean_names(df)
+names(df)
+```
+
+## Filter rows
+
+### Filter explanation
+
+- We will use a very important concept called **filter** to remove rows we don't want in the dataset
+- There are multiple ways to delete rows, but I will show you how to do it using the `dplyr` package `filter()` function because it's super useful and commonly used function
+- The syntax is: `dataframe <- filter(dataframe, conditional)`
+  - `conditional` is a logical conditional statement that returns `TRUE` or `FALSE`
+  - The conditional statement involves a column in the dataset, eg `column_name == value`
+  - `filter()` goes through the whole dataset row-by-row and evaluates the condition in each row, and only the rows that return `TRUE` remain in the dataset
+- Below I've put some general examples of how filter works
+
+```{r}
+#| label: filter-examples
+#| eval: false
+
+# Example 1: filter so that we have districts from just one county
+df_example <- filter(df, county == "Montgomery")
+
+# Example 2: filter so that we just have districts with at least 1,000 students
+df_example <- filter(df, x2021_22_average_daily_membership >= 1000)
+```
+
+### Bonus: base R filtering
+
+- You can also use base R subsetting to filter rows, where you add a minus sign inside the `[]` to remove specific rows or columns
+  - eg `df[-c(501:502), ]` will delete rows 501 and 502
+
+### Application to current project: remove extra rows from bottom of dataset
+
+- In our dataset, there are two extra rows at the bottom of the revenue Excel sheet (because they provided grand totals)
+- We can tell this because those rows have `NA`, the missing data indicator, in most columns
+  - In particular, they have `NA` in the `aun` column, signalling that these rows to do not apply to any specific district, so we do not want them
+- To filter these rows out, we use the `is.na()` function, which returns `TRUE` if a row has the `NA` missing data indicator
+  - But since we want to get rid of those rows and keep the others, we also use the `!` operator, called the "negation" operator, which takes a logical and returns the opposite of it
+
+```{r}
+#| label: drop-rows
+
+df <- filter(df, !is.na(aun))
+```
+
+## Select columns
+
+### Select explanation
+
+- Similar to how we can filter rows so we just keep the ones we want, we can also **select** just the columns we want
+- We will use the `dplyr` `select()` function
+- The syntax is: `dataframe <- select(dataframe, col1, col2, col3)`
+  - This would keep col1, col2, and col3 only
+- We can also *remove* specific columns with this syntax: `select(dataframe, -col1, -col2, -col3)`
+- There are also "helper" functions you can use within `select()` to keep (or remove) all columns that meet certain conditions
+  - For example, you can keep/remove all columns that contain certain character strings in their name with the `contains()` helper function
+  - Syntax example: `dataframe <- select(dataframe, -contains("total_rank"))` removes all columns with `"total_rank"` in their name
+
+### Application to current project: drop columns we don't need
+
+- Typically, we won't need most of the columns in the datasets we're merging together
+- I usually select just the necessary variables before doing the merges, but for teaching purposes it makes more sense to do it here
+- We have 20 variables in our df but don't need them all
+  - For instance, there are two school district name and two county columns since both datasets had them
+  - Also, we don't care about the "total_rank" columns
+- The code below removes these unnecessary columns
+
+```{r}
+#| label: drop-cols
+
+df <- select(df, -lea_name, -county_name, -contains("total_rank"))
+```
+
+## Mutate: change existing columns & create new ones
+
+- The next key `dplyr` function is `mutate()`, which you use to create new columns in a dataframe or modify existing ones
+- The syntax is: `dataframe <- mutate(dataframe, new_col_name = value)`
+  - Where `value` is typically actually some transformation of existing column(s)
+  - Eg `dataframe <- mutate(dataframe, difference = col1 - col2)` would create a new column called `difference` which is the result of subtracting two existing columns in our dataset, `col1` and `col2`
+- `mutate()` goes through the whole dataset row-by-row and evaluates the right hand side of the `=` for each row
+  - The result is the new column's value for the given row
+- You can also overwrite an existing column rather than making a new one by just making the name of the new column the same as the existing column
+  - Eg `dataframe <- mutate(dataframe, col_name = col_name / 1000)` would divide the `col_name` by 1000, which you might want to do to make a column of really large numbers easier to present
+- We will use `mutate()` to recode variables below
+
+### Bonus: base R column modification / creation
+
+- You can also modify & add columns using base R syntax
+- The most common way to do this is using `$` notation
+  - Syntax: `dataframe$difference <- dataframe$col1 - dataframe$col2`
+  - This would achieve the same thing as our "difference" example above
+- You can also overwrite existing columns using this same syntax, eg `dataframe$col_name <- dataframe$col_name / 1000`
+- The disadvantages of base R syntax are that you have to type out the name of the dataframe multiple times, and you can only add or modify one column at a time
+  - So you end up having to write out many lines with the name of the dataframe repeated over and over
+  - It's much easier to read `mutate()` syntax when you are creating/modifying many columns at once, which you typically will be
+- But if you really only need to change/add a single column, it can sometimes be quicker to just use base R syntax
+
+## Recoding variables
+
+- Very important step - getting the data into a form that we can actually use in our analysis
+- Categorical variables in particular usually require some recoding
+- In this case, we want to take the `urban_centric_locale_district` column, which has many categories, and turn it into just 3 categories: suburban, city, and rural
+- We also need to create a set of "dummy variables" for this variable
+  - This is where we create a column for each category within the categorical variable
+  - Rows that have the value of a given category get a 1 in the column for that category and 0 in the columns for the other categories
+- We achieve this using `mutate()` to create the new columns
+  - Then within `mutate()`, we can use functions to create new variables using logical tests of the existing categorical variables
+  - For creating new binary 1/0 variables, the most common function is base R's `ifelse()`
+  - Other really useful ones to check out are dplyr's `case_when()` and `case_match()` and base R's `cut()`
+- Here, we use the `ifelse()` function 
+  - The first argument is a logical test 
+  - The second argument is the value that gets assigned if that test returns TRUE
+  - Third argument is the value that's returned when the test returns FALSE
+  - Since we're making dummy variables, the values we want to assign are `1` and `0`
+  - `ifelse()` goes through each row of the dataframe, runs the test on it, and assigns a value to the new variable based on the outcome of the test
+- The logical test I created uses the `grepl()` function, which returns `TRUE` if the character string supplied in the first argument is contained within the value of the column supplied as the second argument
+  - Other common logical test operators that you should know about include `==` and `%in%`
+
+```{r}
+#| label: recode-locale-variable
+
+df <- df |> 
+  mutate(
+    suburb = ifelse(grepl("Suburb", urban_centric_locale_district), 1, 0),
+    city   = ifelse(grepl("City", urban_centric_locale_district), 1, 0),
+    rural  = ifelse(grepl("Rural", urban_centric_locale_district), 1, 0)
+  )
+```
+
+- To summarize, the above recoding workflow uses a set of 3 nested functions:
+  - function 1: `mutate` is used to create new variables
+  - function 2: `ifelse` is used within mutate, which includes a test that comes back TRUE if a row is a member of a certain group and assigns 1 to that row if so (and 0 otherwise)
+  - function 3: `grepl` is used to perform the logical test
+- Note how this approach enabled us to do both the condensing of categories and creation of dummy variables in one step
+- This is just one of the many different types of recoding tasks you will encounter
+
+## Creating new variables
+
+- This is a similar step to recoding, but typically it involves performing calculations on existing numeric variables to make a new numeric variable
+- A very common task is calculating percentages based on two columns of raw numbers
+- In our example here, we'll calculate a total revenue variable
+  - We have a column for total student count (called "average daily membership" or "adm" in the dataset)
+  - And a column for total revenue per adm
+  - So we will multiply adm * total revenue per adm to get our new variable
+
+```{r}
+#| label: create-new-variable
+
+df <- df |> 
+  mutate(total_rev = x2021_22_average_daily_membership * total_revenue_per_adm)
+```
+
+## Handling missing data
+
+- Handling missing data is one of the most important aspects of data cleaning
+- We won't have to deal with it too much in this project, but I just wanted to include a section so you're aware of the importance of it and some basic things in R
+- I've mentioned already, but there is a special data type in R called the `NA` type - it appears as an italic gray `NA` in the cells of data frames with missing data
+  - When you type `NA` in R with no `""` around it, that's the `NA` type
+  - It's not the same as `"NA"`, which is just a regular character string - it took me a bit of time to realize this
+- The `NA` type has special behaviors that make it a bit annoying to work with at times
+  - But rather than do a deep dive into `NA`, I'll just touch on some basics real quick
+- We've already seen the function `is.na()` which is a logical test function that returns `TRUE` when it encounters `NA` data
+  - You must use this function to access `NA` data
+  - Ie you can't do `data == NA`, that doesn't work. Has to be `is.na(data)` instead
+- A very common and important recoding task is when missing data is sometimes given a special code in a dataset like 999
+  - You have to recode this to `NA`, otherwise it can really mess up your calculations
+  - I don't think we'll encounter this in our project but it's important to always look through codebooks of datasets you use to see if there are any of these special missing codes
+- Recoding something to `NA` is a bit trickier than a typical recode, so here's some syntax you can use:
+  - For example, if the dataset had `999` as the code they use to indicate missing data, this would recode it to `NA`:
+
+```{r}
+#| label: recode-missing
+#| eval: false
+
+# Base R
+df$variable[df$variable == 999, ] <- NA
+
+# Tidyverse (dplyr) - useful if you want to recode within a bigger dplyr chain
+df <- mutate(df, variable = ifelse(variable == 999, NA, variable))
+```
+
+- Also, when you do functions like `sum()` or `mean()`, if any of the data in the vector of numbers you supply to these functions contains `NA`, the result will be `NA` by default
+  - To change this, you need to add the `na.rm = TRUE` argument within the functions, which then simply skips the `NA` values as if they weren't there
+
+```{r}
+#| label: narm-example
+
+data_vector <- c(1, 2, 3, NA, 5)
+
+sum(data_vector)
+sum(data_vector, na.rm = TRUE)
+```
+
+# Analysis
+
+- Once we have the full dataset created, we need to see how the characteristics of the districts in our random sample compare to the other districts in PA
+- There are three main ways to get a sense of how different groups compare on characteristics:
+  - Descriptive statistics tables
+  - Visualizations (ie plots)
+  - Statistical tests
+- To keep things simple, we'll skip visualization for now and just do descriptive stats and tests
+
+## Descriptive statistics 
+
+- The most important descriptive statistic for comparing continuous variables between groups is means
+- Standard deviation, ie how much variation there is within groups, is also good to look at
+- Other stats that can provide useful info about the distribution of your data values is minimum, maximum, and quartiles
+  - These can help you catch weird values in the data that might be data errors
+- For our example, we'll just keep things simple with the mean and standard deviation
+- There are some functions that can give you a full descriptive stats table in one go, but I want to show you the tidyverse way so i can show you the last two really important dplyr functions: `group_by()` and `summarize()`
+  - These two functions work together to allow you to calculate summary statistics by group
+  - First use `group_by()` on the dataframe and specify the column(s) that indicate which group each row is in
+  - Then pipe that into `summarize()` to calculate a summary statistic for specified columns for each group
+  - `summarize()` works exactly like `mutate()` but collapses the data into a new summary stats dataframe rather than adding a new variable to the existing dataframe 
+  - The output is a new dataframe with one row per group and columns containing the statistics you computed
+- In our case, we first need to create a new variable indicating which districts are in our random sample, and use that as our grouping variable
+  - I'm just going to choose a random set of districts here for example purposes
+
+```{r}
+#| label: summary-stats-groupby-summarize
+
+# Create grouping variable indicating districts in our sample
+set.seed(6)
+df$in_sample <- rbinom(500, 1, .1)
+## ^Don't worry about the code above
+
+# Compute summary stats
+summary_stats <- df |> 
+  group_by(in_sample) |> 
+  summarize(
+    rev_mean   = mean(total_revenue_per_adm, na.rm = TRUE),
+    rev_sd     = sd(total_revenue_per_adm, na.rm = TRUE),
+    suburb_pct = mean(suburb, na.rm = TRUE),
+    city_pct   = mean(city, na.rm = TRUE),
+    rural_pct  = mean(rural, na.rm = TRUE)
+  )
+
+summary_stats
+```
+
+- Notice how the summary stats are different for numeric vs categorical variables:
+- For numeric, we just calculate the typical mean and standard deviation
+- For categorical, we use the `mean()` function on each category's dummy variable, which gives us the percentage in each group that fall in each category
+  - Note that standard deviation is not applicable for categorical variables so we do not calculate it
+- Another quick way to get a bunch of summary stats in one go is to use the `psych` package's `describe()` function
+  - You can add additional arguments to the function to customize the output, including getting descriptives by group, worth checking out
+
+```{r}
+#| label: summary-stats-psych-describe
+
+describe(df)
+```
+
+## Statistical tests of group differences
+
+- So we can see from the descriptive table that there are some differences between the groups, but are they large enough compared to the within-group variation to be considered "statistically significantly different"?
+- To answer this for continuous variables, we need to run t-tests
+- This can be done with the `t.test()` function
+- But instead I want to use a function you'll encounter all the time: `lm()`, the linear regression function
+- Here's how you make a linear regression identical to a t-test when you have two groups:
+  - The independent variable is the group indicator
+  - The dependent variable is the variable you want to test for differences
+- Syntax for the `lm()` function:
+  - `lm(y ~ x, data = dataframe)`
+- The `lm()` function outputs a "model" object, which you can save
+- Then run the `summary()` on the model object to print the results
+  - The last column of the output, `Pr(>|t|)` shows the p-value, with stars indicating significance level
+
+```{r}
+#| label: lm-t-test
+
+model_results_rev <- lm(total_revenue_per_adm ~ in_sample, data = df)
+summary(model_results_rev)
+```
+
+- The districts in our sample have a slightly higher level of total revenue on average, which is statistically significantly (p = .04)
+- For categorical variables, we need to do this using logistic regression rather than linear regression, since the outcome is a binary indicator rather than a continuous number
+- It's the same idea, but we use the `glm()` function with the `family = "binomial"` argument
+
+```{r}
+#| label: logistic-reg-group-diffs-test
+
+model_results_suburb <- glm(suburb ~ in_sample, data = df, family = "binomial")
+model_results_city   <- glm(city ~ in_sample, data = df, family = "binomial")
+model_results_rural  <- glm(rural ~ in_sample, data = df, family = "binomial")
+
+summary(model_results_suburb)
+summary(model_results_city)
+summary(model_results_rural)
+```
+
+- Although there are differences in the locale percentages between the groups, they are not statistically significant

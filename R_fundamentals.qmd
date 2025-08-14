@@ -1,0 +1,506 @@
+---
+title: "R Fundamentals"
+author: "David Loeb"
+format: html
+toc: true
+number-sections: true
+---
+
+\newpage
+
+# R Language Core Components
+
+## Objects & Assignment
+
+- The variables you create and use in R are called "objects"
+- An object is basically a value or set of values, which you assign to a name
+- You assign using the assignment operator: `<-`
+- The code below shows an example of creating objects by assigning values to names
+
+```{r}
+a <- 2 + 2
+b <- 1
+a
+b
+a + b
+```
+
+- You can overwrite a previously assigned name
+
+```{r}
+a <- "hello"
+a
+```
+
+## Comments
+
+- Any code that comes after the `#` symbol on a line is a comment
+- It gets treated as regular text rather than code, and it won't be run
+- It's really useful to comment your code to explain what the code is doing - your future self will thank you
+- You can also break code up into different sections using comments to help keep it organized
+
+```{r}
+# This is a comment
+example <- 2 + 2  # You can write comments after code on the same line
+```
+
+## Data Types
+
+- We will use three main types of data in R:
+  - Numbers
+  - Character strings
+  - Logicals (`TRUE` and `FALSE`)
+- Character strings are usually letters / words / phrases, but they can include anything that's wrapped in quotation marks `""`
+  - Example: `"hello"`, `"123"` - these are both character strings since they're wrapped in quotes
+  - Note: you can also put them in `''`, eg `'hello'`, `'123'`, there's no difference
+- Logicals are returned when you write code that essentially has yes or no answers
+  - We rarely have them in our actual datasets, but they're really useful for making our code do various things, which we will see later
+  - The code below has an example
+
+```{r}
+# Example of logicals
+3 > 2
+3 < 2
+```
+
+## Functions & Arguments
+
+- When you use R, you are basically just using functions to do things to data
+- A function is a set of code that performs operations on data
+- Functions always take "arguments", which is the term used for the specific data that you input into a function
+- Example: the `sum()` function takes a set of numbers and adds them all together
+  - The numbers you put inside the function's `()` are the arguments
+  - In the example below, you give three arguments, `1`, `2`, and `3`, to the `sum()` function
+
+```{r}
+sum(1, 2, 3)
+```
+
+- Arguments are always separated by commas
+- Sometimes the arguments have names, in which case the syntax is `function(arg_name = value)`
+- In the example below, we give the `plot()` function's `x` argument a value of `1` and its `y` argument a value of `2` to plot a single point
+
+```{r}
+plot(x = 1, y = 2)
+```
+
+## Data Structures
+
+- To keep things simple for now, I'll just talk about the two data structures we will need for this project: vectors and data frames
+  - These are the two I use in the vast majority of work I do
+  - If you want a very brief overview of the four other main types, check [this page](https://www.geeksforgeeks.org/data-structures-in-r-programming/)
+- Vectors are just a set of values, eg `(1, 2, 3)`, `("a", "b", "c")`, `(TRUE, TRUE, FALSE)` etc
+  - You create vectors with the `c()` function, which stands for "concatenate"
+  - Eg `c(1, 2, 3)` creates a vector of the values 1, 2 and 3
+- Data frames are actual datasets; you can think of them like a spreadsheet
+- In R, data frames are just a combination of individual vectors
+  - Each column of the dataframe is a vector
+- You can create data frames with the `data.frame()` function
+  - But usually, we just load datasets that already exist, eg from Excel or CSV files, and those are the data frames we use
+- The code below shows examples of vectors and data frames
+
+```{r}
+# Vectors
+vector1 <- c(1, 2, 3)
+vector2 <- c("a", "b", "c")
+vector1
+vector2
+
+# Data frame
+df <- data.frame(vector1, vector2)
+df
+```
+
+## Extracting / Subsetting Values From Vectors and Data Frames
+
+- You can use brackets (`[]`) to get specific values out of vectors
+  - This is often referred to as "subsetting"
+- For example, if you want the second value from a vector, you type `vector[2]`
+
+```{r}
+vector1[2]
+vector2[2]
+vector1[1] + vector1[3]
+```
+
+- Note that the brackets identify elements of the vector by position; the below example demonstrates this more clearly
+
+```{r}
+vector3 <- c(4, 5, 6)
+vector3[1]
+```
+
+- Similarly, you can do this with data frames, but now there are two dimensions: a row and a column
+- So, you need to specify two numbers separated by a comma, eg `dataframe[1,2]`
+  - In this example, we would get the value from the first row and second column of the dataframe
+
+```{r}
+df[1,2]
+```
+
+- You can also supply vectors of positions on each side of the comma to get multiple rows' and/or multiple columns' values
+
+```{r}
+df[c(2:3), 1]
+
+# Another way to write the above code
+index_vector <- c(2,3)
+df[index_vector, 1]
+```
+
+- If you want an entire row, or an entire column, you can just leave one side of the comma blank
+  - Eg `dataframe[1, ]` would get all values from the first row
+
+```{r}
+df[1, ]
+```
+
+- You can do the same thing to get an entire column of a data frame, eg `df[ ,2]`
+- BUT there are easier ways to access columns
+- The most common is using the `$` operator
+  - The syntax is like this: `dataframe$column_name`, eg `df$vector2`
+  - It allows you to access that column as a vector
+
+```{r}
+df$vector2
+df$vector1
+```
+
+- There are other ways to access values from dataframes using `[]`, but the above ways are the most common
+
+## The Pipe
+
+- R has a very useful operator called the "pipe": `|>`
+  - You can type with keyboard shortcut: cmd + shift + m
+- It allows you to string together multiple function calls, so that the result of the first function becomes the first argument of the next function
+
+```{r}
+x <- 5
+x |> sum(6, 7)
+# ^This is equivalent to this:
+sum(5, 6, 7)
+
+x <- x |> sum(1) |> sum(2)
+# ^This is equivalent to this:
+# x <- sum(5, 1) |> sum(2), which is equivalent to:
+# x <- sum(6, 2)
+x
+```
+
+- Above, we make an object called `x` that has a value of `5`
+  - We then pipe `x` into the `sum()` function, where 6 and 7 are added to it to get a result of 18
+- In the second example you see how we can chain together multiple function calls
+  - Note that we reassigned x to have the result of that series of functions - this is very common
+
+## Operators
+
+- R has a set of standard operators, which can be broadly grouped into two categories:
+  - Arithmetic (aka math)
+  - Logical
+- Arithmetic operators are as follows:
+  - `+`, `-`, `/` and `*`: addition, subtraction, division, and multiplication
+  - `^` is used for exponents, eg `5^2` is 5 to the power of 2, aka 25
+
+```{r}
+3 + 3
+3 - 3
+3 / 3
+3 * 3
+3^3
+```
+
+- Logical operators return `TRUE` or `FALSE`
+- `==`: This is the logical operator for "equals" - it's a double equal sign (since a single equal sign is how you assign values)
+  - A very common error you will probably get at the beginning is forgetting to make your equal sign a double equals when trying to do a logical (i still make this error sometimes)
+- `!=`: does not equal. Returns TRUE if the two objects do not equal each other
+- `>`, `<`, `>=`, and `<=`: greater than, less than, greater than or equal to, less than or equal to
+- `%in%`: Checking if something matches at least one value in a vector of values
+- `&` and `|`: "and" and "or" operators, which allow you to combine multiple logical operations
+  - `&` requires all results to be `TRUE` for it to return `TRUE`, otherwise it returns `FALSE`
+  - `|` will return `TRUE` if at least 1 result is `TRUE`
+  - Eg `2 + 2 == 4 & 2 + 2 == 5` returns `FALSE`
+  - `2 + 2 == 4 | 2 + 2 == 5` returns `TRUE`
+- `!`: The negation operator. This takes a logical and returns it's opposite
+  - Eg `!(TRUE)` returns `FALSE`
+  - Or `!(5 == 4)` returns `TRUE`
+
+```{r}
+var <- 2
+
+var == 2
+var != 2
+var > 1
+var < 1
+var >= 2
+var <= 2
+
+var %in% c(1, 2, 3, 4, 5)
+var %in% c(1, 3, 4, 5)
+
+var == 2 & var == 3
+var == 2 | var == 3
+
+!(var %in% c(1, 2, 3, 4, 5))
+```
+
+## Packages
+
+- There are tons of great "packages" created by R users that expand on R's built-in functionality
+- You install them with `install.packages("package_name")`
+- Then you have to load them each time you start an R session, with `library(package_name)`
+
+# Additional Useful Information
+
+## Code Style
+
+### Line length & multi-line styling
+
+- It's generally recommended that you keep your code to a maximum of 80 characters per line
+- If code gets longer than that, you can split it across multiple lines
+- For example, if you call a function that has many argumetns and so is longer than 80 characters, its customary to split the parentheses across multiple lines, with each argument on its own line in between, indented by two spaces
+
+```{r}
+data_frame_obj <- data.frame(
+  col1 = c(1, 2, 3, 4, 5, 6, 7),
+  col2 = c("a", "b", "c", "d", "e", "f", "g"),
+  col3 = c(100, 200, 300, 400, 500, 600, 700)
+)
+```
+
+- Another very common example is chaining many functions together with the pipe operator
+  - We typically will end each line with the pipe, and then start a new line for the next function (all indented by two spaces under the first line)
+
+```{r}
+# Don't worry about the meaning of the code, this is just to demonstrate style
+data_frame_obj_2 <- data_frame_obj |> 
+  dplyr::filter(col1 != 7) |> 
+  dplyr::mutate(col4 = (col1 + col3) * 50) |> 
+  dplyr::rename(single_digits = col1, hundreds = col3) |> 
+  dplyr::select(single_digits, col2, col4)
+```
+
+- Sometimes a sub-function in a pipeline will be longer than 80 characters, in which case we use the same aprroach as above to split the function across multiple lines
+  - The arguments to the function are still indented 2 spaces below the function, meaning they are now indented 4 spaces total
+
+```{r}
+data_frame_obj_3 <- data_frame_obj |> 
+  mutate(
+    col4 = (col1 + col3) * 50,
+    col5 = ifelse(col2 %in% c("a", "b", "c"), 1, 0),
+    col6 = col1 + col3 * col5
+  ) |> 
+  filter(col1 != 7)
+```
+
+- This multi-line style makes the code way easier to read
+
+### Other style guidelines
+
+- Recommended to put spaces bewteen most things, with the exception being parentheses - these should be touching the function and the first and last arugments, ie `function(arg1, arg2)`
+- Naming: best practice is to use "snake case", ie object names are all lower case and separated by "_"
+  - Eg `new_object`
+  - You want names to be descriptive, so you can look at it and know what the object is, but also try to prevent them from getting too long if possible
+  - Descriptiveness is more important than length though
+- The style elements described above are the most important; this site has a full style guide if you want to know about other things: <https://style.tidyverse.org>
+
+## Organizing Code: Sections & Outlines
+
+### R scripts
+
+- You can use comments to create sections in your code
+- You just need to put at least four hyphens, equal signs, or comment symbols at the end of a comment
+  - `# Section 1 ----` or `# Section 1 ====` or `# Section 1 ####`
+  - `# Section 1 ------------` works too, it can be longer than 4
+- I personally like to make the end hyphens extend the full length of the line
+  - And i like to make main sections end with the `=` and then subsections end with `-` (see example below)
+- You can create hierarchies to the sections, eg if you want to make a subsection, you start the comment with two `#` symbols
+  - `## Subsection A ----`
+  - `### Sub-Subsection ----`
+- Then, when you click the "Outline" button on the top right of a Script, it will show an outline of these sections
+  - Or you can use the keyboard shortcut to toggle the outline: cmd + shift + o (on mac)
+
+```{r}
+# Example of Sections: Main Header =============================================
+
+## Example of first subsection -------------------------------------------------
+
+example <- 2 + 2
+
+### Example of sub-subsection --------------------------------------------------
+
+example2 <- 3 + 3
+```
+
+- It's common for people to make the section headers stand out even more, like:
+
+```{r}
+#------------------------------------------------------------------------------#
+# Section Header ----
+#------------------------------------------------------------------------------#
+
+example <- 2 + 2
+```
+
+- If you do it like this, just make sure to end the lines above and below the header with something other than the character you used to create the borders, otherwise it will get added to the outline
+  - In the example above, I ended the border lines with a single `#` to prevent them from being added to the outline
+
+### Quarto
+
+- In Quarto, the regular text part is what creates the Outline, not the sections within a code chunk
+- The regular text sections work the same way, but you don't need to end the lines with any special characters, you just need to start the line with `#` or multiple `#` if it's a subsection
+- You can still section out your code chunks though (like I did in the example above), but it's typically less important in Quarto since your code is likely to be broken across multiple chunks which will fall in different sections that are denoted by the regular text headers
+
+### Folding code
+
+- A nice feature of sections is that you can "fold" the code in a specific sections
+- If you click the arrow next to a section header, it will fold the code up so that it's minimized and doesn't take up any space in your script / quarto doc
+  - And then click the arrow again to unfold it
+- There are keyboard shortcuts for code folding as well; see the keyboard shortcuts section below
+
+## Tidyverse
+
+- The "tidyverse" is a set of packages created by Posit, the company that also creates RStudio
+- Packages within the tidyverse have a really nice syntax that's a bit different from built-in R syntax, so for many things there will be a "base R" way to do it and a tidyverse way to do it
+- Tidyverse essentially fixes a lot of problems with base R, and the code is clearer/more readable, so I (and most others) usually take the tidyverse approach
+- The main powerhouse tidyverse packages are dplyr (for data cleaning & manipulation) and ggplot2 (for plotting) but there are about 25 total, all are great
+
+## R Script vs Quarto
+
+### Overview
+
+- R Script is simplest way to write & run code
+- Quarto allows you to write both regular text and write & run R code in one document
+- You can output Quarto into Word, PDF, and other doc types so you can have regular text and code & output all in one doc
+- I mostly used R Scripts when I first started out and only used Quarto for homework, so that's prob a good way for you to start too
+  - But Quarto is super useful when you get into larger projects that require a lot of documentation
+- Quick tutorial on Quarto: https://quarto.org/docs/get-started/hello/rstudio.html
+- Reference for Markdown syntax: https://www.markdownguide.org/basic-syntax/
+
+### Quarto vs R Markdown:
+
+- Quarto is the newer version of R Markdown, but they're basically the same thing
+  - Both are created by Posit
+  - Posit recommends to use Quarto rather than R Markdown now
+- Markdown is a computer language for writing & formatting regular text
+  - Used in many programming applications, including Quarto & R Markdown
+
+### Running code & viewing output in R Script
+
+- To run the code in an R script, you can press cmd + return (or ctrl + enter on windows i think)
+  - It will run the single line of code where your cursor is
+  - Or if your cursor is in a block of code that spans multiple lines, it will run that whole block
+- If you want to run multiple lines/blocks of code, you can highlight the whole section you want to run and again press cmd + return
+- The output will display in the "Console" window
+  - And any data visualization output will display in the "Plots" window
+
+### Running code & viewing output in Quarto
+
+- In Quarto, code goes in "code chunks", which you insert with cmd + option + i (on macs)
+
+```{r}
+# This is a code chunk
+```
+
+- You write your code in the chunk, and you can execute the code in the same way as if it was an R script
+- The output now comes out below the code chunk rather than in the Console and Plots window
+- You can also run an entire chunk at once with cmd + shift + return (or click the "play button" in top right corner of chunk)
+  - All the output will display below the code chunk, and sometimes there will be multiple different output windows you can switch between, for example if the code outputs multiple tables or plots
+- You can also run all code chunks in a document that come before a specific chunk by clicking the down arrow with green line underneath that's in the top right corner of the chunk next to the play button
+
+## RStudio Settings & Tour
+
+### RStudio windows
+
+- RStudio has many different windows, though most you'll probably rarely use
+- The three most important are:
+  - "Source" window: ie the R Script or Quarto window
+  - Console: displays output, and you can also type and run single lines of R code in here
+  - Environment: shows the objects that exist in your environment at the moment
+- The other windows that you'll use sometimes are:
+  - Plots: displays plot output when the plots are created via an R Script
+  - Viewer: sometimes a table will display here, or if you create a PDF with quarto a preview will display here
+  - Help: If you type `?function` it will bring up the function's official documentation in this window; useful for quick reference if you're trying to remember how a function's arguments are set up and stuff like that
+- Then here are a couple that i use, but you can also access this stuff on your computer itself
+  - Files: this is just a window that allows you to access your files & folders on your computer, directly from R
+  - Terminal: this is just your computer's terminal; you won't have to use this any time soon
+- I've never really used any of the other windows
+
+### RStudio pane setup
+
+- The default RStudio pane setup (ie the 4 different window sections) is not ideal in my opinion (and i think most others agree)
+- Here's the adjustments I recommend:
+1. Move the console pain from the bottom left to top right
+2. Make the bottom left pain all the windows you will never use
+    - I put History, Connections, Packages, Tutorial, and Presentation there
+    - Keep this pane minimized at all times, so you have the maximum amount of vertical space for your code window
+3. Move all the other tabs to the bottom right
+    - I have: Environment, Files, Plots, Help and Viewer
+- To make these changes, press cmd + , (or Edit > Settings from drop down menu, at least on mac), then go to Pane Layout and adjust there
+
+### Other settings recommendations
+
+- In settings, in the General tab, change "Save workspace to .RData on exit" to "Never"
+  - You always want a clean/fresh environment when you start a new R session, so it's never a good idea to save your workspace (nobody knows why the default option is to ask if you want to save it)
+- In settings, go to Code, and check "Use native pipe operator"
+  - It just makes it so the keyboard shortcut for the pipe inserts the native pipe instead of the older pipe
+  - Not a huge deal, but the newer one is more efficient, looks cleaner in the code, and is 1 less character
+- Then in the Code section, click the Display tab, and check these two settings: 
+  - "Highlight R function calls": makes it so that function calls are highlighted, so they're visually distinct from other code. Makes it easier to see what the code is doing.
+  - "Use rainbow parentheses": Makes it so that parentheses are different colors. Helpful to visually see which ending parentheses match to which starting parentheses, because we often will have many sets of parentheses in a given line of code
+- I highly recommend checking out other color schemes, which you access in settings in Appearance, "editor theme"
+  - I am not a fan of the default color scheme
+  - I love the Dracula theme
+  - For a "light" theme (ie white/light background) I like Chrome the best
+  - I encourage you to check them all out and find one you like the best, it weirdly makes a huge difference, at least to me, and makes the experience much more pleasant
+- You can also adjust the font & font size in Appearance, "Editor font" and "Editor font size"
+  - Highly recommend making the font at least size 11 (i set mine to 13)
+  - If you have Menlo as a font option, try it out, i find it easier to read than the default (Monaco)
+
+## Keyboard Shortcuts
+
+These shortcuts are specific to Mac, but they all have a Windows (or other) equivalent if you search for it. I think some typical Mac -> Windows replacements are cmd -> ctrl, return -> enter, option -> alt.
+
+### Essential shortcuts
+
+The shortcuts below are essential, you will use them constantly.
+
+- `cmd + enter`: run selected code, either highlighted code or current line if nothing highlighted
+- `option + -`: insert <- (arrow)
+- `cmd + shift + m`: insert |> (pipe)
+- `cmd + option + i`: insert code chunk in Quarto
+
+### Other shortcuts
+
+These are also good to know about.
+
+- `cmd + shift + enter`: run entire code chunk in Quarto
+- `cmd + shift + c`: comment (or uncomment) out entire highlighted section of code
+- [more will be added]
+
+## Troubleshooting: Google, Stack Overflow, blogs
+
+- Whenever you get stuck, any question you have has been answered on the internet
+- If you google your question, you will eventually find the answer, typically on the Stack Overflow forum or other related forums or blog posts
+- Sometimes you have to visit a few different pages or read through a few posts, but you will find it eventually
+- You'll also pick up tips and get to understand R better as you read through posts, even if they end up not having the answer you need
+  - You will be exposed to multiple different ways of doing things and understand why certain approaches are better than others
+- But, pay attention to the date of the solutions, as R packages are constantly improving
+  - So the more recent the response, the more likely it is to be the best approach
+  - People are really good about updating their responses on Stack Overflow though to make sure they stay current, since they know it's such an important resource
+- Also, when you get error messages, you can copy and paste the error message into google to get to forum posts where others had the same error, and that will show you what the problem is and how to fix it
+- Another option is ChatGPT or other AI/LLMs, which can be faster in some cases, but is also often wrong and there's no way to know how trustworthy the answer is
+  - Even if the code works, it might not actually be the best approach, but you won't know that without reading through the actual human posts about the different approaches
+  - Still, it can be a good option if you're getting frustrated and just need some code that works quickly, but you will ultimately learn more by googling and going through stack overflow and blog posts, if you have the time
+
+### Function documentation via Help tab
+
+- You can also type `?function_name` to bring up the Help tab for that function, which has the function's official documentation
+- This is sometimes useful particularly if you want to see all the available arguments for a function and a description of what they do
+- But honestly, a lot of the functions are not well documented, and I had a hard time understanding the help stuff when i first started using R
+  - I found googling way more helpful
+  - That being said, the tidyverse packages have great documentation so their help pages may be more useful than some others
+
+## R for Data Science
+
+- If you're interested in really getting strong R skills, the best resource I've used is the book "R for Data Science", written by Hadley Wickham, the lead programmer at Posit who created most of the tidyverse packages
+- It's available for free online: <https://r4ds.hadley.nz>

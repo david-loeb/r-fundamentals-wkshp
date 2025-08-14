@@ -1,0 +1,3 @@
+# Workshops: R Fundamentals
+
+This repo contains materials for a series of workshops and trainings for my research team of master's students in the winter and spring of 2024. We covered the core building blocks of R and other useful information to know for getting started (R_fundamentals.qmd), how to create a dataset by downloading and merging publicly available data and how use it for descriptive analyses (dataset_creation_and_descriptive_analyses.qmd), and how to reshape datasets (dataset_reshaping.qmd).
